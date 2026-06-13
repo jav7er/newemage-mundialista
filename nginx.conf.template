@@ -1,0 +1,53 @@
+# Cache server-side de la API: respeta el rate limit de football-data.org
+# (10 req/min en plan free) aunque haya cientos de visitantes simultáneos.
+proxy_cache_path /var/cache/nginx/wc levels=1:2 keys_zone=wc_cache:5m max_size=50m inactive=30m use_temp_path=off;
+
+server {
+    listen 80;
+    server_name _;
+
+    root /usr/share/nginx/html;
+    index index.html;
+
+    # Headers de seguridad básicos
+    add_header X-Frame-Options "SAMEORIGIN" always;
+    add_header X-Content-Type-Options "nosniff" always;
+    add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+    add_header Permissions-Policy "camera=(), microphone=(), geolocation=()" always;
+
+    # Habilita compresión Gzip
+    gzip on;
+    gzip_vary on;
+    gzip_min_length 10240;
+    gzip_proxied expired no-cache no-store private auth;
+    gzip_types text/plain text/css text/xml text/javascript application/x-javascript application/xml application/javascript;
+    gzip_disable "MSIE [1-6]\.";
+
+    # Proxy server-side hacia football-data.org: evita el bloqueo CORS del navegador
+    # y mantiene la API key fuera del bundle del cliente.
+    location /api/wc/ {
+        proxy_pass https://api.football-data.org/v4/;
+        proxy_ssl_server_name on;
+        proxy_set_header Host api.football-data.org;
+        proxy_set_header X-Auth-Token "${FOOTBALL_DATA_API_KEY}";
+
+        # Todas las visitas comparten una sola respuesta cacheada por 2 minutos:
+        # el upstream recibe como máximo ~1 request por endpoint cada 2 min.
+        proxy_cache wc_cache;
+        proxy_cache_valid 200 2m;
+        proxy_cache_valid any 30s;
+        proxy_cache_use_stale error timeout updating http_429 http_500 http_502 http_503;
+        proxy_cache_lock on;
+        add_header X-Cache-Status $upstream_cache_status always;
+    }
+
+    location / {
+        try_files $uri $uri/ /index.html;
+    }
+
+    # Caché para los assets estáticos recomendada
+    location ~* \.(js|css|png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf|eot)$ {
+        expires 30d;
+        add_header Cache-Control "public, no-transform";
+    }
+}

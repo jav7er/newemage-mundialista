@@ -1,0 +1,141 @@
+@import "tailwindcss";
+
+@theme {
+  --font-pixel: "Press Start 2P", system-ui, sans-serif;
+  /* VT323: pixel font legible para textos pequeños (fechas, tags, listas) */
+  --font-terminal: "VT323", monospace;
+}
+
+@layer base {
+  body {
+    @apply bg-zinc-950 text-white font-pixel leading-relaxed;
+    background-image: 
+      linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.4) 50%), 
+      linear-gradient(90deg, rgba(200, 20, 50, 0.04), rgba(30, 200, 40, 0.04), rgba(255, 255, 255, 0.04));
+    background-size: 100% 4px, 4px 100%;
+  }
+
+  ::selection {
+    @apply bg-[#00f3ff] text-black;
+  }
+}
+
+.pixel-border {
+  box-shadow: 
+    -4px 0 0 0 white,
+    4px 0 0 0 white,
+    0 -4px 0 0 white,
+    0 4px 0 0 white;
+  margin: 4px;
+}
+
+.pixel-border-green {
+  box-shadow: 
+    -4px 0 0 0 #39ff14,
+    4px 0 0 0 #39ff14,
+    0 -4px 0 0 #39ff14,
+    0 4px 0 0 #39ff14;
+  margin: 4px;
+}
+
+.pixel-border-red {
+  box-shadow: 
+    -4px 0 0 0 #ff003c,
+    4px 0 0 0 #ff003c,
+    0 -4px 0 0 #ff003c,
+    0 4px 0 0 #ff003c;
+  margin: 4px;
+}
+
+.pixel-border-orange {
+  box-shadow: 
+    -4px 0 0 0 #f97316,
+    4px 0 0 0 #f97316,
+    0 -4px 0 0 #f97316,
+    0 4px 0 0 #f97316;
+  margin: 4px;
+}
+
+.pixel-border-yellow {
+  box-shadow: 
+    -4px 0 0 0 #ffe600,
+    4px 0 0 0 #ffe600,
+    0 -4px 0 0 #ffe600,
+    0 4px 0 0 #ffe600;
+  margin: 4px;
+}
+
+.pixel-border-cyan {
+  box-shadow: 
+    -4px 0 0 0 #00f3ff,
+    4px 0 0 0 #00f3ff,
+    0 -4px 0 0 #00f3ff,
+    0 4px 0 0 #00f3ff;
+  margin: 4px;
+}
+
+.pixel-border-magenta {
+  box-shadow: 
+    -4px 0 0 0 #ff00ff,
+    4px 0 0 0 #ff00ff,
+    0 -4px 0 0 #ff00ff,
+    0 4px 0 0 #ff00ff;
+  margin: 4px;
+}
+
+.scanlines {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.25) 50%);
+  background-size: 100% 4px;
+  pointer-events: none;
+  z-index: 50;
+  opacity: 0.6;
+}
+
+.animate-blink {
+  animation: blink 1s step-start infinite;
+}
+
+@keyframes blink {
+  50% { opacity: 0; }
+}
+
+.custom-scrollbar::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: #111;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: #3f3f46;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: #39ff14;
+}
+
+/* Marquee del ticker de resultados */
+.ticker-track {
+  display: inline-block;
+  animation: ticker-scroll 45s linear infinite;
+  will-change: transform;
+}
+
+.ticker-track:hover {
+  animation-play-state: paused;
+}
+
+@keyframes ticker-scroll {
+  from { transform: translateX(0); }
+  to { transform: translateX(-50%); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ticker-track {
+    animation: none;
+  }
+}

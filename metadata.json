@@ -1,0 +1,8 @@
+{
+  "name": "New Emage Mundial 2026",
+  "description": "Dashboard interactivo para la quinela del mundial de la oficina",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
