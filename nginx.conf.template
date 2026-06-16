@@ -34,7 +34,7 @@ server {
         # Todas las visitas comparten una sola respuesta cacheada por 2 minutos:
         # el upstream recibe como máximo ~1 request por endpoint cada 2 min.
         proxy_cache wc_cache;
-        proxy_cache_valid 200 2m;
+        proxy_cache_valid 200 1m;
         proxy_cache_valid any 30s;
         proxy_cache_use_stale error timeout updating http_429 http_500 http_502 http_503;
         proxy_cache_lock on;

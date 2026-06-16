@@ -135,7 +135,7 @@ export default function App() {
     };
 
     fetchData();
-    const interval = setInterval(fetchData, 5 * 60 * 1000); // 5 minutos (rate limit de football-data.org)
+    const interval = setInterval(fetchData, 60 * 1000); // 1 minuto
     return () => clearInterval(interval);
   }, [detectGoals]);
 

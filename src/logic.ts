@@ -168,7 +168,7 @@ export const processApiMatches = (apiData: any): MatchData[] => {
   });
 };
 
-const TTL_MS = 5 * 60 * 1000; // 5 minutes (respeta el rate limit de football-data.org)
+const TTL_MS = 60 * 1000; // 1 minuto (nginx cachea server-side; upstream recibe máx. 3 req/min)
 
 export const fetchWithCache = async (url: string) => {
   try {
