@@ -1,6 +1,8 @@
 import { motion, AnimatePresence } from 'motion/react';
 import { MatchData, ParticipantStats } from '../types';
 import { EQUIPO_A_PARTICIPANTE, normalizarTexto, getFlagUrl } from '../data';
+import { buildBracket } from '../logic';
+import { BracketView } from './BracketView';
 
 interface Props {
   featured: MatchData[];
@@ -12,6 +14,7 @@ interface Props {
 }
 
 export const DashboardView = ({ featured, leaderboard, matches, onParticipantClick, onTeamClick, onShare }: Props) => {
+  const bracketRounds = buildBracket(matches);
   return (
     <>
       {featured.length > 0 && (
@@ -123,6 +126,38 @@ export const DashboardView = ({ featured, leaderboard, matches, onParticipantCli
                         ))}
                       </div>
                     )}
+
+                    {/* PANEL DE EQUIPOS VIVOS */}
+                    {p.equipos && p.equipos.length > 0 && (
+                      <div className="mt-3">
+                        <div className="font-terminal text-[11px] text-zinc-400 mb-1.5 flex items-center gap-2">
+                          <span className={p.equiposVivos > 0 ? 'text-[#39ff14]' : 'text-[#ff003c]'}>
+                            {p.equiposVivos}/{p.equipos.length} VIVOS
+                          </span>
+                          {p.equiposVivos === 0 && <span className="text-[#ff003c]">💀 ELIMINADO</span>}
+                        </div>
+                        <div className="flex flex-wrap gap-1.5">
+                          {p.equipos.map(eq => {
+                            const flag = getFlagUrl(eq.nombre);
+                            return (
+                              <div
+                                key={eq.nombre}
+                                title={`${eq.nombre}${eq.vivo ? ' (vivo)' : ' (eliminado)'}`}
+                                onClick={(e) => { e.stopPropagation(); onTeamClick(eq.nombre); }}
+                                className={`relative ${eq.vivo ? '' : 'opacity-40'}`}
+                              >
+                                {flag
+                                  ? <img src={flag} alt={eq.nombre} className={`w-7 h-5 object-cover pixel-border transition-transform hover:scale-110 ${eq.vivo ? 'ring-1 ring-[#39ff14]' : 'grayscale'}`} />
+                                  : <div className="w-7 h-5 bg-zinc-800 pixel-border" />}
+                                {!eq.vivo && (
+                                  <span className="absolute inset-0 flex items-center justify-center text-[#ff003c] text-[10px] font-bold leading-none">✕</span>
+                                )}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </div>
 
@@ -214,6 +249,9 @@ export const DashboardView = ({ featured, leaderboard, matches, onParticipantCli
           </div>
         </div>
       </div>
+
+      {/* BRACKET DE ELIMINACIÓN */}
+      <BracketView rounds={bracketRounds} onParticipantClick={onParticipantClick} onTeamClick={onTeamClick} />
     </>
   );
 };

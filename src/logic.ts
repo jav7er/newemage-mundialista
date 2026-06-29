@@ -1,11 +1,43 @@
 import Papa from 'papaparse';
-import { MatchData, TeamStats, ParticipantStats, GroupStanding, Scorer } from './types';
+import { MatchData, TeamStats, ParticipantStats, GroupStanding, Scorer, BracketRound, TeamAlive } from './types';
 import { PARTICIPANTES, normalizarTexto, translateTeamName } from './data';
 
 export const KNOCKOUT_STAGES = ['LAST_32', 'LAST_16', 'ROUND_OF_16', 'QUARTER_FINALS', 'SEMI_FINALS', 'THIRD_PLACE', 'FINAL'];
 
 export const isKnockoutStage = (etapa?: string) =>
   !!etapa && etapa !== 'GROUP_STAGE' && KNOCKOUT_STAGES.includes(etapa);
+
+// Orden y etiquetas de la eliminatoria del Mundial 2026 (48 equipos).
+// aliases cubre las variantes que puede mandar la API de football-data.
+const KNOCKOUT_ROUNDS: { stage: string; label: string; expectedCount: number; aliases: string[] }[] = [
+  { stage: 'LAST_32', label: '16AVOS', expectedCount: 16, aliases: ['LAST_32'] },
+  { stage: 'LAST_16', label: 'OCTAVOS', expectedCount: 8, aliases: ['LAST_16', 'ROUND_OF_16'] },
+  { stage: 'QUARTER_FINALS', label: 'CUARTOS', expectedCount: 4, aliases: ['QUARTER_FINALS', 'QUARTER_FINAL'] },
+  { stage: 'SEMI_FINALS', label: 'SEMIS', expectedCount: 2, aliases: ['SEMI_FINALS', 'SEMI_FINAL'] },
+  { stage: 'THIRD_PLACE', label: '3ER LUGAR', expectedCount: 1, aliases: ['THIRD_PLACE', 'THIRD_PLACE_FINAL'] },
+  { stage: 'FINAL', label: 'FINAL', expectedCount: 1, aliases: ['FINAL'] },
+];
+
+// Arma el bracket completo desde los partidos de eliminatoria de la API.
+// Siempre devuelve las rondas principales (aunque estén vacías = "POR DEFINIR")
+// para que se vea la estructura del árbol. La ronda de 3er lugar solo aparece
+// cuando ya hay partido programado.
+export const buildBracket = (matches: MatchData[]): BracketRound[] => {
+  const rounds = KNOCKOUT_ROUNDS.map(r => ({
+    stage: r.stage,
+    label: r.label,
+    expectedCount: r.expectedCount,
+    matches: matches
+      .filter(m => m.Etapa && r.aliases.includes(m.Etapa))
+      .sort((a, b) => (a.OriginalDate?.getTime() ?? 0) - (b.OriginalDate?.getTime() ?? 0)),
+  }));
+
+  return rounds.filter(r => r.stage !== 'THIRD_PLACE' || r.matches.length > 0);
+};
+
+// ¿Ya empezó la fase de eliminación? (hay al menos un partido de knockout)
+export const hayEliminatoria = (matches: MatchData[]) =>
+  matches.some(m => isKnockoutStage(m.Etapa));
 
 export const processRawMatches = (matches: MatchData[]) => {
   const teamStats: Record<string, TeamStats> = {};
@@ -73,16 +105,22 @@ export const processRawMatches = (matches: MatchData[]) => {
     let golesAFavor = 0;
     let golesEnContra = 0;
     let equiposVivos = 0;
+    const equipos: TeamAlive[] = [];
 
     PARTICIPANTES[nombre as keyof typeof PARTICIPANTES].forEach(equipo => {
       const stats = getOrCreateTeam(equipo);
       puntosTotales += stats.pts;
       golesAFavor += stats.gf;
       golesEnContra += stats.gc;
-      if (!eliminados.has(normalizarTexto(equipo))) equiposVivos += 1;
+      const vivo = !eliminados.has(normalizarTexto(equipo));
+      if (vivo) equiposVivos += 1;
+      equipos.push({ nombre: equipo, vivo });
     });
 
-    return { nombre, puntosTotales, golesAFavor, golesEnContra, equiposVivos, badges: [] };
+    // Equipos vivos primero para que el panel los muestre arriba
+    equipos.sort((a, b) => Number(b.vivo) - Number(a.vivo));
+
+    return { nombre, puntosTotales, golesAFavor, golesEnContra, equiposVivos, equipos, badges: [] };
   });
 
   partStats.sort((a, b) => b.puntosTotales - a.puntosTotales);

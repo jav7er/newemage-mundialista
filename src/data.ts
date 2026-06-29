@@ -82,3 +82,18 @@ export const getFlagUrl = (equipoName: string) => {
   if (code) return `https://flagcdn.com/w40/${code}.png`;
   return null;
 };
+
+// Color por participante (consistente en bracket y paneles).
+export const PARTICIPANTE_COLOR: Record<string, string> = {
+  "Paty": "#ff00ff",
+  "Omar": "#00f3ff",
+  "Robert": "#39ff14",
+  "Adrian": "#f97316",
+  "Isamar": "#ffe600",
+  "Javier": "#ff5d8f",
+};
+
+export const getParticipanteColor = (nombre?: string) => {
+  if (!nombre) return '#71717a'; // zinc-500 para LIBRE
+  return PARTICIPANTE_COLOR[nombre] || '#71717a';
+};

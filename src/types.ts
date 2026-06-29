@@ -21,13 +21,26 @@ export interface TeamStats {
   pp: number;
 }
 
+export interface TeamAlive {
+  nombre: string;
+  vivo: boolean;
+}
+
 export interface ParticipantStats {
   nombre: string;
   puntosTotales: number;
   golesAFavor: number;
   golesEnContra: number;
   equiposVivos: number;
+  equipos: TeamAlive[]; // los 8 equipos del participante con su estado vivo/eliminado
   badges: string[];
+}
+
+export interface BracketRound {
+  stage: string;
+  label: string;
+  expectedCount: number; // cuántos partidos tiene la ronda cuando está completa
+  matches: MatchData[];
 }
 
 export interface GroupItem {
