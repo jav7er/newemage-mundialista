@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { MatchData, ParticipantStats, GroupStanding, Scorer } from './types';
-import { processCSVMatches, processApiMatches, processRawMatches, fetchWithCache, fetchApiStandings, fetchApiScorers, getFallbackStandings, getFallbackScorers, toLocalDateStr } from './logic';
+import { MatchData, ParticipantStats, GroupStanding, Scorer, PronosticoStats } from './types';
+import { processCSVMatches, processApiMatches, processRawMatches, fetchWithCache, fetchApiStandings, fetchApiScorers, getFallbackStandings, getFallbackScorers, toLocalDateStr, calcularPronosticos } from './logic';
 import { EQUIPO_A_PARTICIPANTE, normalizarTexto } from './data';
 import { DashboardView } from './components/DashboardView';
 import { MatchesView } from './components/MatchesView';
@@ -31,6 +31,7 @@ export default function App() {
   const [leaderboard, setLeaderboard] = useState<ParticipantStats[]>([]);
   const [standings, setStandings] = useState<GroupStanding[]>([]);
   const [scorers, setScorers] = useState<Scorer[]>([]);
+  const [pronosticos, setPronosticos] = useState<PronosticoStats[]>([]);
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -108,8 +109,9 @@ export default function App() {
       setMatches(rawDataMatches);
       detectGoals(rawDataMatches);
 
-      const { partStats, teamStats } = processRawMatches(rawDataMatches);
+      const { partStats, teamStats, eliminados } = processRawMatches(rawDataMatches);
       setLeaderboard(partStats);
+      setPronosticos(calcularPronosticos(rawDataMatches, eliminados));
 
       // Power-up cuando cambia el líder (no en la carga inicial)
       const leader = partStats[0]?.nombre ?? null;
@@ -219,7 +221,7 @@ export default function App() {
 
   const renderView = () => {
     switch(activeView) {
-      case 'DASHBOARD': return <DashboardView featured={featured} leaderboard={leaderboard} matches={matches} onParticipantClick={handleParticipantClick} onTeamClick={setSelectedTeam} onShare={() => shareLeaderboard(leaderboard)} />;
+      case 'DASHBOARD': return <DashboardView featured={featured} leaderboard={leaderboard} matches={matches} pronosticos={pronosticos} onParticipantClick={handleParticipantClick} onTeamClick={setSelectedTeam} onShare={() => shareLeaderboard(leaderboard)} />;
       case 'MATCHES': return <MatchesView matches={matches} onParticipantClick={handleParticipantClick} onTeamClick={setSelectedTeam} />;
       case 'GROUPS': return <GroupsView groups={standings} onParticipantClick={handleParticipantClick} onTeamClick={setSelectedTeam} />;
       case 'SCORERS': return <ScorersView scorers={scorers} onParticipantClick={handleParticipantClick} onTeamClick={setSelectedTeam} />;

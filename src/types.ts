@@ -43,6 +43,27 @@ export interface BracketRound {
   matches: MatchData[];
 }
 
+export interface PronosticoTeam {
+  nombre: string;
+  fifaRank: number;
+  vivo: boolean;
+  knockoutPts: number; // puntos sumados en eliminatoria
+  knockoutGf: number;
+  knockoutGc: number;
+  proximoRival: string | null; // siguiente rival en el bracket (null si ya no hay o eliminado)
+}
+
+export interface PronosticoStats {
+  nombre: string;
+  scoreTotal: number;    // 0-100 normalizado
+  scoreFifa: number;     // componente ranking FIFA (0-100)
+  scoreTorneo: number;   // componente rendimiento en torneo (0-100)
+  scoreVivos: number;    // componente equipos vivos (0-100)
+  equipos: PronosticoTeam[];
+  mejorEquipo: string;   // equipo con mejor FIFA rank vivo
+  equiposVivos: number;
+}
+
 export interface GroupItem {
   id: number;
   name: string;

@@ -1,6 +1,6 @@
 import Papa from 'papaparse';
-import { MatchData, TeamStats, ParticipantStats, GroupStanding, Scorer, BracketRound, TeamAlive } from './types';
-import { PARTICIPANTES, normalizarTexto, translateTeamName } from './data';
+import { MatchData, TeamStats, ParticipantStats, GroupStanding, Scorer, BracketRound, TeamAlive, PronosticoStats, PronosticoTeam } from './types';
+import { PARTICIPANTES, normalizarTexto, translateTeamName, getFifaRank } from './data';
 
 export const KNOCKOUT_STAGES = ['LAST_32', 'LAST_16', 'ROUND_OF_16', 'QUARTER_FINALS', 'SEMI_FINALS', 'THIRD_PLACE', 'FINAL'];
 
@@ -149,7 +149,7 @@ export const processRawMatches = (matches: MatchData[]) => {
     }
   }
 
-  return { partStats, teamStats };
+  return { partStats, teamStats, eliminados };
 };
 
 export const processCSVMatches = (csvText: string): MatchData[] => {
@@ -299,6 +299,113 @@ export const getFallbackScorers = (teamStats: Record<string, TeamStats>): Scorer
      }
   });
   return scorers.sort((a, b) => b.goals - a.goals).slice(0, 15);
+};
+
+// ─── PRONÓSTICO ──────────────────────────────────────────────────────────────
+// Calcula la "posibilidad de ganar la quiniela" de cada participante.
+// Combina tres factores:
+//   1. Fuerza FIFA (60 %): promedio de ranking FIFA de los equipos vivos (invertido).
+//   2. Rendimiento en eliminatoria (30 %): puntos + goles en partidos knockout.
+//   3. Cobertura (10 %): fracción de equipos aún vivos.
+export const calcularPronosticos = (matches: MatchData[], eliminados: Set<string>): PronosticoStats[] => {
+  // Partidos de eliminatoria terminados
+  const knockoutFinished = matches.filter(
+    m => isKnockoutStage(m.Etapa) && (m.Estado.toLowerCase() === 'terminado' || m.Estado.toLowerCase() === 'finished')
+  );
+
+  // Próximo rival en el bracket para cada equipo (primer partido pendiente/en juego donde aparece)
+  const knockoutPending = matches.filter(
+    m => isKnockoutStage(m.Etapa) && m.Estado.toLowerCase() !== 'terminado' && m.Estado.toLowerCase() !== 'finished'
+  );
+  const proximoRivalMap: Record<string, string> = {};
+  knockoutPending.forEach(m => {
+    const t1 = normalizarTexto(m["Equipo 1"]);
+    const t2 = normalizarTexto(m["Equipo 2"]);
+    if (!proximoRivalMap[t1]) proximoRivalMap[t1] = m["Equipo 2"];
+    if (!proximoRivalMap[t2]) proximoRivalMap[t2] = m["Equipo 1"];
+  });
+
+  // Stats knockout por equipo
+  const knockoutStats: Record<string, { pts: number; gf: number; gc: number }> = {};
+  knockoutFinished.forEach(m => {
+    const t1 = normalizarTexto(m["Equipo 1"]);
+    const t2 = normalizarTexto(m["Equipo 2"]);
+    const g1 = parseInt(m["Goles 1"], 10);
+    const g2 = parseInt(m["Goles 2"], 10);
+    if (isNaN(g1) || isNaN(g2)) return;
+
+    if (!knockoutStats[t1]) knockoutStats[t1] = { pts: 0, gf: 0, gc: 0 };
+    if (!knockoutStats[t2]) knockoutStats[t2] = { pts: 0, gf: 0, gc: 0 };
+
+    knockoutStats[t1].gf += g1;
+    knockoutStats[t1].gc += g2;
+    knockoutStats[t2].gf += g2;
+    knockoutStats[t2].gc += g1;
+
+    const winner = m.Ganador === 'HOME' ? t1 : m.Ganador === 'AWAY' ? t2
+      : g1 > g2 ? t1 : g2 > g1 ? t2 : null;
+    if (winner) knockoutStats[winner].pts += 3;
+  });
+
+  const raw = Object.entries(PARTICIPANTES).map(([nombre, equipos]) => {
+    const teams: PronosticoTeam[] = equipos.map(eq => {
+      const norm = normalizarTexto(eq);
+      const vivo = !eliminados.has(norm);
+      const ks = knockoutStats[norm] ?? { pts: 0, gf: 0, gc: 0 };
+      return {
+        nombre: eq,
+        fifaRank: getFifaRank(eq),
+        vivo,
+        knockoutPts: ks.pts,
+        knockoutGf: ks.gf,
+        knockoutGc: ks.gc,
+        proximoRival: vivo ? (proximoRivalMap[norm] ?? null) : null,
+      };
+    });
+
+    const vivos = teams.filter(t => t.vivo);
+    const equiposVivos = vivos.length;
+    const mejorEquipo = vivos.sort((a, b) => a.fifaRank - b.fifaRank)[0]?.nombre ?? equipos[0];
+
+    // 1. FIFA: promedio de ranking de equipos vivos (o todos si ninguno vivo), invertido
+    //    Escala: rank 1 → 99 pts, rank 48 → 52 pts, rank 99 → 1 pt
+    const rankSource = vivos.length > 0 ? vivos : teams;
+    const avgRank = rankSource.reduce((s, t) => s + t.fifaRank, 0) / rankSource.length;
+    const rawFifa = Math.max(0, 100 - avgRank);
+
+    // 2. Torneo: puntos + diferencia de goles en eliminatoria de los equipos vivos
+    const knockPts = vivos.reduce((s, t) => s + t.knockoutPts, 0);
+    const knockGd = vivos.reduce((s, t) => s + (t.knockoutGf - t.knockoutGc), 0);
+    const rawTorneo = knockPts * 3 + Math.max(0, knockGd) * 0.5;
+
+    // 3. Cobertura
+    const rawVivos = (equiposVivos / 8) * 100;
+
+    return { nombre, rawFifa, rawTorneo, rawVivos, teams, mejorEquipo, equiposVivos };
+  });
+
+  // Normalizar cada componente al rango del grupo (max=100)
+  const maxFifa   = Math.max(...raw.map(r => r.rawFifa), 1);
+  const maxTorneo = Math.max(...raw.map(r => r.rawTorneo), 1);
+
+  const withScores = raw.map(r => {
+    const scoreFifa   = (r.rawFifa / maxFifa) * 100;
+    const scoreTorneo = (r.rawTorneo / maxTorneo) * 100;
+    const scoreVivos  = r.rawVivos;
+    const scoreTotal  = scoreFifa * 0.60 + scoreTorneo * 0.30 + scoreVivos * 0.10;
+    return {
+      nombre: r.nombre,
+      scoreTotal,
+      scoreFifa,
+      scoreTorneo,
+      scoreVivos,
+      equipos: r.teams,
+      mejorEquipo: r.mejorEquipo,
+      equiposVivos: r.equiposVivos,
+    } as PronosticoStats;
+  });
+
+  return withScores.sort((a, b) => b.scoreTotal - a.scoreTotal);
 };
 
 export const fetchApiScorers = async () => {

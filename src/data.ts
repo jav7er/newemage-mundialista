@@ -83,6 +83,62 @@ export const getFlagUrl = (equipoName: string) => {
   return null;
 };
 
+// Rankings FIFA aproximados (edición mayo 2026).
+// Fuente: FIFA World Ranking — usados para ponderar el Pronóstico.
+export const FIFA_RANK: Record<string, number> = {
+  // Top potencias
+  "argentina":       1,
+  "francia":         2,
+  "espana":          3,
+  "inglaterra":      4,
+  "belgica":         5,
+  "portugal":        6,
+  "holanda":         7,
+  "brazil":          8,
+  "croacia":         9,
+  "colombia":       10,
+  "uruguay":        11,
+  "alemania":       12,
+  "marruecos":      13,
+  "suiza":          14,
+  "japon":          15,
+  "usa":            16,
+  "mexico":         17,
+  "senegal":        18,
+  "austria":        19,
+  "turquia":        20,
+  "noruega":        21,
+  "escocia":        22,
+  "suecia":         23,
+  "korea":          24,
+  "ecuador":        25,
+  "australia":      26,
+  "chequia":        27,
+  "iran":           28,
+  "canada":         29,
+  "panama":         30,
+  "paraguay":       31,
+  "ghana":          32,
+  "congo":          33,
+  "arabia saudita": 34,
+  "boznia":         35,
+  "sudafrica":      36,
+  "argelia":        37,
+  "cabo verde":     38,
+  "qatar":          39,
+  "nueva zelanda":  40,
+  "uzbekistan":     41,
+  "tunez":          42,
+  "jordania":       43,
+  "haiti":          44,
+  "irak":           45,
+  "curazao":        46,
+};
+
+export const getFifaRank = (equipo: string): number => {
+  return FIFA_RANK[normalizarTexto(equipo)] ?? 99;
+};
+
 // Color por participante (consistente en bracket y paneles).
 export const PARTICIPANTE_COLOR: Record<string, string> = {
   "Paty": "#ff00ff",
