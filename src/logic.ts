@@ -18,6 +18,76 @@ const KNOCKOUT_ROUNDS: { stage: string; label: string; expectedCount: number; al
   { stage: 'FINAL', label: 'FINAL', expectedCount: 1, aliases: ['FINAL'] },
 ];
 
+const isMatchFinished = (m: MatchData) =>
+  m.Estado.toLowerCase() === 'terminado' || m.Estado.toLowerCase() === 'finished';
+
+// Nombre del equipo ganador de un partido terminado (soporta penales vía Ganador).
+const getWinnerName = (m: MatchData): string | null => {
+  if (!isMatchFinished(m)) return null;
+  if (m.Ganador === 'HOME') return m["Equipo 1"];
+  if (m.Ganador === 'AWAY') return m["Equipo 2"];
+  const g1 = parseInt(m["Goles 1"], 10);
+  const g2 = parseInt(m["Goles 2"], 10);
+  if (isNaN(g1) || isNaN(g2)) return null;
+  if (g1 > g2) return m["Equipo 1"];
+  if (g2 > g1) return m["Equipo 2"];
+  return null;
+};
+
+// Reordena los partidos de "current" (ronda anterior) para que cada pareja
+// que alimenta el mismo partido de "next" (ronda siguiente) quede contigua
+// y en el mismo orden relativo, replicando la estructura real del árbol
+// (no solo el orden cronológico, que puede desalinear los cruces visuales).
+// Además, si "next" todavía no tiene rival definido para ninguno de los dos
+// lados, se le asigna al par de partidos pendientes que le corresponden por
+// posición y, si alguno de ellos ya terminó, se adelanta su ganador para que
+// se vea avanzando en el bracket sin esperar a que la API confirme el cruce
+// completo.
+const alignToNextRound = (current: MatchData[], next: MatchData[]): MatchData[] => {
+  const remaining = [...current];
+  const ordered: MatchData[] = [];
+
+  const takeFeederByWinner = (teamName: string | undefined): MatchData | null => {
+    if (!teamName) return null;
+    const idx = remaining.findIndex(m => {
+      const w = getWinnerName(m);
+      return !!w && normalizarTexto(w) === normalizarTexto(teamName);
+    });
+    return idx === -1 ? null : remaining.splice(idx, 1)[0];
+  };
+
+  next.forEach((p, idx) => {
+    const home = p["Equipo 1"];
+    const away = p["Equipo 2"];
+
+    if (home || away) {
+      // Al menos un lado ya está definido: ubicamos sus dos alimentadores.
+      const f1 = takeFeederByWinner(home);
+      const f2 = takeFeederByWinner(away);
+      if (f1) ordered.push(f1);
+      if (f2) ordered.push(f2);
+      return;
+    }
+
+    // Ambos lados indefinidos todavía: tomamos los siguientes dos partidos
+    // pendientes (en orden) como sus probables alimentadores. Si alguno ya
+    // terminó, mostramos su ganador de una vez (sin mutar el partido
+    // original: se reemplaza por una copia local de esta ronda).
+    const f1 = remaining.shift();
+    const f2 = remaining.shift();
+    const w1 = f1 ? getWinnerName(f1) : null;
+    const w2 = f2 ? getWinnerName(f2) : null;
+    if (w1 || w2) {
+      next[idx] = { ...p, "Equipo 1": w1 ?? p["Equipo 1"], "Equipo 2": w2 ?? p["Equipo 2"] };
+    }
+    if (f1) ordered.push(f1);
+    if (f2) ordered.push(f2);
+  });
+
+  ordered.push(...remaining);
+  return ordered;
+};
+
 // Arma el bracket completo desde los partidos de eliminatoria de la API.
 // Siempre devuelve las rondas principales (aunque estén vacías = "POR DEFINIR")
 // para que se vea la estructura del árbol. La ronda de 3er lugar solo aparece
@@ -31,6 +101,13 @@ export const buildBracket = (matches: MatchData[]): BracketRound[] => {
       .filter(m => m.Etapa && r.aliases.includes(m.Etapa))
       .sort((a, b) => (a.OriginalDate?.getTime() ?? 0) - (b.OriginalDate?.getTime() ?? 0)),
   }));
+
+  // Alinea cada ronda con la siguiente (de la primera a la última) para que
+  // el bracket refleje quién enfrenta a quién en la práctica.
+  const mainRounds = rounds.filter(r => r.stage !== 'THIRD_PLACE');
+  for (let i = 0; i < mainRounds.length - 1; i++) {
+    mainRounds[i].matches = alignToNextRound(mainRounds[i].matches, mainRounds[i + 1].matches);
+  }
 
   return rounds.filter(r => r.stage !== 'THIRD_PLACE' || r.matches.length > 0);
 };
@@ -99,6 +176,24 @@ export const processRawMatches = (matches: MatchData[]) => {
       }
     }
   });
+
+  // Además de las eliminaciones directas en llaves (arriba), si el bracket
+  // de eliminación ya arrancó (hay equipos reales asignados a Dieciseisavos)
+  // cualquier equipo que jugó fase de grupos pero no aparece en ninguna
+  // llave quedó fuera desde grupos: no debe seguir contando como "vivo" en
+  // High Scores ni en el cálculo de probabilidades.
+  const equiposEnLlaves = new Set<string>();
+  matches.forEach(match => {
+    if (isKnockoutStage(match.Etapa)) {
+      if (match["Equipo 1"]) equiposEnLlaves.add(normalizarTexto(match["Equipo 1"]));
+      if (match["Equipo 2"]) equiposEnLlaves.add(normalizarTexto(match["Equipo 2"]));
+    }
+  });
+  if (equiposEnLlaves.size > 0) {
+    Object.keys(teamStats).forEach(norm => {
+      if (!equiposEnLlaves.has(norm)) eliminados.add(norm);
+    });
+  }
 
   const partStats: ParticipantStats[] = Object.keys(PARTICIPANTES).map(nombre => {
     let puntosTotales = 0;
